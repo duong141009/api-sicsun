@@ -16,14 +16,14 @@ const PORT = process.env.PORT || 3000;
 fastify.register(fastifyWebsocket);
 
 // --- Cấu hình API Key và Auth cho WebSocket ---
-const API_KEY = "WANGLINNNNN"; // Thay đổi key này bằng key của bạn
+const API_KEY = "DWONGGG"; // Thay đổi key này bằng key của bạn
 
 // Middleware for HTTP API (still keeping it for now, can be removed)
 fastify.addHook("onRequest", async (request, reply) => {
   if (request.url.startsWith("/api/sunwin") || request.url.startsWith("/api/history-json")) {
     const urlKey = request.query.key;
     if (!urlKey || urlKey !== API_KEY) {
-      return reply.code(403).send({ error: "Key sai mẹ rồi, liên hệ tele: @sg205rika" });
+      return reply.code(403).send({ error: "Key sai mẹ rồi, liên hệ tele: @duonggg1410" });
     }
   }
 });
@@ -280,7 +280,7 @@ async function broadcastPrediction() {
                 "do_tin_cay": "0.00%",
                 "cau": "Chưa đủ dữ liệu",
                 "ngay": currentTimestamp,
-                "Id": "@hellokietne21"
+                "Id": "@duonggg1410"
             };
             connectedClients.forEach(clientWs => {
                 if (clientWs.readyState === WebSocket.OPEN) {
