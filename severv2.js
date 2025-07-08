@@ -494,7 +494,7 @@ async function broadcastPrediction() {
             "do_tin_cay": `${overallConfidence}%`,
             "cau": detectedPatternString,
             "ngay": currentTimestamp,
-            "Id": "@duonggg1410
+            "Id": "@duonggg1410"
 "
         };
 
