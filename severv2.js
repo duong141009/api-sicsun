@@ -2487,3 +2487,12 @@ fastify.get("/ws/sunwin", { websocket: true }, (connection, req) => {
 
   connection.socket.send(JSON.stringify({ message: "Kết nối thành công tới Sunwin WebSocket Server!" }));
 });
+
+// --- Add default route to prevent 404 on "/"
+fastify.get('/', async (request, reply) => {
+  return {
+    status: '✅ Server is running!',
+    uptime: `${process.uptime().toFixed(2)}s`,
+    timestamp: new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })
+  };
+});
