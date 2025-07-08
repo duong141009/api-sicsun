@@ -494,7 +494,8 @@ async function broadcastPrediction() {
             "do_tin_cay": `${overallConfidence}%`,
             "cau": detectedPatternString,
             "ngay": currentTimestamp,
-            "Id": "@hellokietne21"
+            "Id": "@duonggg1410
+"
         };
 
         // Broadcast to all connected WebSocket clients
@@ -2147,7 +2148,7 @@ fastify.get("/api/sunwin", async (request, reply) => {
           "do_tin_cay": "0.00%",
           "cau": "Chưa đủ dữ liệu",
           "ngay": currentTimestamp,
-          "Id": "Kietdev"
+          "Id": "duonggg1410"
         });
         return resolve();
       }
@@ -2306,7 +2307,7 @@ fastify.get("/api/sunwin", async (request, reply) => {
         "do_tin_cay": `${overallConfidence}%`,
         "cau": detectedPatternString,
         "ngay": currentTimestamp,
-        "Id": "Kietdev"
+        "Id": "duonggg1410"
       });
       resolve();
     });
@@ -2441,7 +2442,7 @@ const start = async () => {
     console.log(`Server Fastify đang chạy tại ${address}`);
     console.log(`HTTP API (for testing): http://localhost:${PORT}/api/sunwin?key=${API_KEY}`);
     console.log(`History JSON (for testing): http://localhost:${PORT}/api/history-json?key=${API_KEY}`);
-    console.log(`WebSocket API (use ws:// with public IP): ws://YOUR_PUBLIC_IP:${PORT}/api/sunwin/taixiu/ws?id=tuankietdevtool&key=${API_KEY}`);
+    console.log(`WebSocket API (use ws:// with public IP): ws://YOUR_PUBLIC_IP:${PORT}/api/sunwin/taixiu/ws?id=duonggg&key=${API_KEY}`);
   } catch (err) {
     console.error("Lỗi khi khởi động server Fastify:", err);
     process.exit(1);
