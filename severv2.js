@@ -43,9 +43,9 @@ let intervalCmd = null;
 const dbPath = path.resolve(__dirname, 'sun.sql');
 const db = new sqlite3.Database(dbPath, (err) => {
   if (err) {
-    console.error("Lỗi kết nối cơ sở dữ liệu:", err.message);
+//     console.error("Lỗi kết nối cơ sở dữ liệu:", err.message);
   } else {
-    console.log("Đã kết nối cơ sở dữ liệu SQLite.");
+//     console.log("Đã kết nối cơ sở dữ liệu SQLite.");
     db.run(`
       CREATE TABLE IF NOT EXISTS sessions (
         sid INTEGER PRIMARY KEY,
@@ -58,9 +58,9 @@ const db = new sqlite3.Database(dbPath, (err) => {
       )
     `, (err) => {
       if (err) {
-        console.error("Lỗi tạo bảng 'sessions':", err.message);
+//         console.error("Lỗi tạo bảng 'sessions':", err.message);
       } else {
-        console.log("Bảng 'sessions' đã sẵn sàng.");
+//         console.log("Bảng 'sessions' đã sẵn sàng.");
       }
     });
   }
@@ -91,7 +91,7 @@ async function loadLogicPerformance() {
   }
 }
 
- để linh hoạt hơn
+//  để linh hoạt hơn
 const HIGH_CONFIDENCE_THRESHOLD = 0.75; // Ngưỡng du_doan rất tự tin (slightly increased)
 const MODERATE_CONFIDENCE_THRESHOLD = 0.60; // Ngưỡng du_doan trung bình (slightly increased)
 
@@ -141,7 +141,7 @@ function connectWebSocket() {
   ws = new WebSocket("wss://websocket.azhkthg1.net/websocket?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJhbW91bnQiOjB9.p56b5g73I9wyoVu4db679bOvVeFJWVjGDg_ulBXyav8");
 
   ws.on("open", () => {
-    console.log("Đã kết nối WebSocket thành công đến Sunwin.");
+//     console.log("Đã kết nối WebSocket thành công đến Sunwin.");
 
     const authPayload = [
       1,
@@ -228,18 +228,18 @@ function connectWebSocket() {
         }
       }
     } catch (e) {
-      console.error("Lỗi khi phân tích tin nhắn WebSocket từ Sunwin:", e);
+//       console.error("Lỗi khi phân tích tin nhắn WebSocket từ Sunwin:", e);
     }
   });
 
   ws.on("close", () => {
-    console.warn("Kết nối WebSocket đến Sunwin bị đóng. Đang thử kết nối lại...");
+//     console.warn("Kết nối WebSocket đến Sunwin bị đóng. Đang thử kết nối lại...");
     clearInterval(intervalCmd);
     setTimeout(connectWebSocket, reconnectInterval);
   });
 
   ws.on("error", (err) => {
-    console.error("Lỗi WebSocket từ Sunwin:", err.message);
+//     console.error("Lỗi WebSocket từ Sunwin:", err.message);
     ws.close();
   });
 }
@@ -251,8 +251,8 @@ fastify.get("/api/history-json", async (request, reply) => {
   return new Promise((resolve, reject) => {
     db.all(`SELECT sid, d1, d2, d3, total, result, timestamp FROM sessions ORDER BY sid ASC`, (err, rows) => {
       if (err) {
-        console.error("Lỗi khi truy vấn DB để xuất JSON:", err.message);
-        reply.status(500).send("Lỗi nội bộ server khi xuất dữ liệu.");
+//         console.error("Lỗi khi truy vấn DB để xuất JSON:", err.message);
+//         reply.status(500).send("Lỗi nội bộ server khi xuất dữ liệu.");
         return reject("Lỗi nội bộ server khi xuất dữ liệu.");
       }
 
@@ -265,11 +265,11 @@ fastify.get("/api/history-json", async (request, reply) => {
       const jsonFilePath = path.resolve(__dirname, 'sun_history.json');
       fs.writeFile(jsonFilePath, JSON.stringify(validHistory, null, 2), (writeErr) => {
         if (writeErr) {
-          console.error("Lỗi khi ghi file JSON:", writeErr.message);
-          reply.status(500).send("Lỗi nội bộ server khi ghi file JSON.");
+//           console.error("Lỗi khi ghi file JSON:", writeErr.message);
+//           reply.status(500).send("Lỗi nội bộ server khi ghi file JSON.");
           return reject("Lỗi nội bộ server khi ghi file JSON.");
         }
-        console.log(`Đã xuất lịch sử phiên ra: ${jsonFilePath}`);
+//         console.log(`Đã xuất lịch sử phiên ra: ${jsonFilePath}`);
         reply.type('application/json').send(JSON.stringify(validHistory, null, 2));
         resolve();
       });
