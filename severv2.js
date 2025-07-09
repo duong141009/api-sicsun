@@ -91,7 +91,7 @@ async function loadLogicPerformance() {
   }
 }
 
- để linh hoạt hơn
+ // để linh hoạt hơn
 const HIGH_CONFIDENCE_THRESHOLD = 0.75; // Ngưỡng du_doan rất tự tin (slightly increased)
 const MODERATE_CONFIDENCE_THRESHOLD = 0.60; // Ngưỡng du_doan trung bình (slightly increased)
 
