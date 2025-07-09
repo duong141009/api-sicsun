@@ -246,3 +246,33 @@ function connectWebSocket() {
 
 connectWebSocket();
 
+// Route JSON render:
+fastify.get("/api/history-json", async (request, reply) => {
+  return new Promise((resolve, reject) => {
+    db.all(`SELECT sid, d1, d2, d3, total, result, timestamp FROM sessions ORDER BY sid ASC`, (err, rows) => {
+      if (err) {
+        console.error("Lỗi khi truy vấn DB để xuất JSON:", err.message);
+        reply.status(500).send("Lỗi nội bộ server khi xuất dữ liệu.");
+        return reject("Lỗi nội bộ server khi xuất dữ liệu.");
+      }
+
+      const validHistory = rows.filter(item =>
+        item.d1 !== undefined && item.d2 !== undefined && item.d3 !== undefined &&
+        item.d1 >= 1 && item.d1 <= 6 && item.d2 >= 1 && item.d2 <= 6 && item.d3 >= 1 && item.d3 <= 6 &&
+        item.total >= 3 && item.total <= 18
+      );
+
+      const jsonFilePath = path.resolve(__dirname, 'sun_history.json');
+      fs.writeFile(jsonFilePath, JSON.stringify(validHistory, null, 2), (writeErr) => {
+        if (writeErr) {
+          console.error("Lỗi khi ghi file JSON:", writeErr.message);
+          reply.status(500).send("Lỗi nội bộ server khi ghi file JSON.");
+          return reject("Lỗi nội bộ server khi ghi file JSON.");
+        }
+        console.log(`Đã xuất lịch sử phiên ra: ${jsonFilePath}`);
+        reply.type('application/json').send(JSON.stringify(validHistory, null, 2));
+        resolve();
+      });
+    });
+  });
+});
