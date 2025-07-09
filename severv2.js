@@ -2,52 +2,44 @@ const Fastify = require('fastify');
 const WebSocket = require('ws');
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
-const fs = require('fs');
-const fastifyWebsocket = require('@fastify/websocket');
 
 // Cấu hình server
-const fastify = Fastify({ 
+const app = Fastify({ 
   logger: true,
-  trustProxy: true // Cần thiết khi deploy trên Render
+  trustProxy: true
 });
 
 const PORT = process.env.PORT || 3000;
-const API_KEY = process.env.API_KEY || "DUONGGG";
+const API_KEY = process.env.API_KEY || "DUONGGG_DEFAULT_KEY";
 
-// Khởi tạo database
-const dbPath = path.resolve(__dirname, 'sun.sql');
-const db = new sqlite3.Database(dbPath);
+// Kết nối database
+const db = new sqlite3.Database(path.resolve(__dirname, 'sun.sql'));
 
-db.serialize(() => {
-  db.run(`CREATE TABLE IF NOT EXISTS sessions (
+// Tạo bảng nếu chưa tồn tại
+db.exec(`
+  CREATE TABLE IF NOT EXISTS sessions (
     sid INTEGER PRIMARY KEY,
-    d1 INTEGER NOT NULL,
-    d2 INTEGER NOT NULL,
-    d3 INTEGER NOT NULL,
-    total INTEGER NOT NULL,
-    result TEXT NOT NULL,
+    d1 INTEGER NOT NULL CHECK(d1 BETWEEN 1 AND 6),
+    d2 INTEGER NOT NULL CHECK(d2 BETWEEN 1 AND 6),
+    d3 INTEGER NOT NULL CHECK(d3 BETWEEN 1 AND 6),
+    total INTEGER NOT NULL CHECK(total BETWEEN 3 AND 18),
+    result TEXT NOT NULL CHECK(result IN ('Tài', 'Xỉu')),
     timestamp INTEGER NOT NULL
-  )`);
-});
+  )
+`);
 
 // WebSocket Sunwin
-let ws = null;
-let reconnectTimer = null;
+let sunwinConnection = null;
 const connectedClients = new Set();
 
-function connectSunwinWS() {
-  if (reconnectTimer) {
-    clearTimeout(reconnectTimer);
-    reconnectTimer = null;
-  }
+function connectToSunwin() {
+  sunwinConnection = new WebSocket("wss://websocket.azhkthg1.net/websocket?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJhbW91bnQiOjB9.p56b5g73I9wyoVu4db679bOvVeFJWVjGDg_ulBXyav8");
 
-  ws = new WebSocket("wss://websocket.azhkthg1.net/websocket?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJhbW91bnQiOjB9.p56b5g73I9wyoVu4db679bOvVeFJWVjGDg_ulBXyav8");
-
-  ws.on('open', () => {
-    console.log('✅ Đã kết nối WebSocket tới Sunwin');
+  sunwinConnection.on('open', () => {
+    console.log('🟢 Đã kết nối tới Sunwin WebSocket');
     
-    // Xác thực kết nối
-    ws.send(JSON.stringify([
+    // Gửi thông tin xác thực
+    sunwinConnection.send(JSON.stringify([
       1,
       "MiniGame",
       "SC_trumtxlonhatvn",
@@ -59,124 +51,133 @@ function connectSunwinWS() {
     ]));
   });
 
-  ws.on('message', async (data) => {
+  sunwinConnection.on('message', async (data) => {
     try {
       const json = JSON.parse(data);
-      if (Array.isArray(json) && json[1]?.htr) {
-        const results = json[1].htr.sort((a, b) => a.sid - b.sid);
+      if (!Array.isArray(json) || !json[1]?.htr) return;
 
-        for (const item of results) {
-          if (![item.d1, item.d2, item.d3].every(d => d >= 1 && d <= 6)) continue;
-          
-          const total = item.d1 + item.d2 + item.d3;
-          if (total < 3 || total > 18) continue;
+      const results = json[1].htr.sort((a, b) => a.sid - b.sid);
 
-          const exists = await new Promise(resolve => {
-            db.get("SELECT sid FROM sessions WHERE sid = ?", [item.sid], (err, row) => {
-              resolve(!!row);
-            });
+      for (const { sid, d1, d2, d3 } of results) {
+        // Validate dữ liệu
+        if (![d1, d2, d3].every(die => die >= 1 && die <= 6)) continue;
+        
+        const total = d1 + d2 + d3;
+        if (total < 3 || total > 18) continue;
+
+        // Kiểm tra phiên đã tồn tại chưa
+        const exists = await new Promise(resolve => {
+          db.get("SELECT 1 FROM sessions WHERE sid = ?", [sid], (err, row) => {
+            resolve(!!row);
+          });
+        });
+
+        if (!exists) {
+          const result = total <= 10 ? "Xỉu" : "Tài";
+          const timestamp = Date.now();
+
+          await new Promise(resolve => {
+            db.run(
+              "INSERT INTO sessions VALUES (?, ?, ?, ?, ?, ?, ?)",
+              [sid, d1, d2, d3, total, result, timestamp],
+              resolve
+            );
           });
 
-          if (!exists) {
-            const result = total <= 10 ? "Xỉu" : "Tài";
-            const timestamp = Date.now();
+          console.log(`📌 Đã lưu phiên ${sid}: ${result} (${d1},${d2},${d3})`);
 
-            await new Promise(resolve => {
-              db.run(
-                "INSERT INTO sessions VALUES (?, ?, ?, ?, ?, ?, ?)",
-                [item.sid, item.d1, item.d2, item.d3, total, result, timestamp],
-                resolve
-              );
-            });
+          // Gửi tới tất cả clients đang kết nối
+          const response = {
+            phien_truoc: sid - 1,
+            ket_qua: result,
+            Dice: [d1, d2, d3],
+            phien_hien_tai: sid,
+            ngay: new Date(timestamp).toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" }),
+            Id: "@duonggg1410"
+          };
 
-            console.log(`➡️ Đã lưu phiên ${item.sid}: ${result}`);
-
-            const response = {
-              phien_truoc: item.sid - 1,
-              ket_qua: result,
-              Dice: [item.d1, item.d2, item.d3],
-              phien_hien_tai: item.sid,
-              ngay: new Date(timestamp).toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" }),
-              Id: "@duonggg1410"
-            };
-
-            connectedClients.forEach(client => {
-              if (client.readyState === WebSocket.OPEN) {
-                client.send(JSON.stringify(response));
-              }
-            });
-          }
+          connectedClients.forEach(client => {
+            if (client.readyState === WebSocket.OPEN) {
+              client.send(JSON.stringify(response));
+            }
+          });
         }
       }
-    } catch (err) {
-      console.error('❌ Lỗi xử lý message:', err);
+    } catch (error) {
+      console.error('❌ Lỗi xử lý dữ liệu:', error);
     }
   });
 
-  ws.on('close', () => {
-    console.log('🔴 Mất kết nối WebSocket. Sẽ kết nối lại sau 5s...');
-    reconnectTimer = setTimeout(connectSunwinWS, 5000);
+  sunwinConnection.on('close', () => {
+    console.log('🔴 Mất kết nối Sunwin. Đang thử kết nối lại sau 5s...');
+    setTimeout(connectToSunwin, 5000);
   });
 
-  ws.on('error', (err) => {
-    console.error('❌ WebSocket error:', err.message);
+  sunwinConnection.on('error', (error) => {
+    console.error('💥 Lỗi WebSocket:', error.message);
   });
 }
 
 // Đăng ký WebSocket plugin
-fastify.register(fastifyWebsocket);
+app.register(require('@fastify/websocket'));
 
 // Route chính
-fastify.get('/', async (request, reply) => {
+app.get('/', (request, reply) => {
   return {
-    status: 'SERVER HOẠT ĐỘNG',
+    status: 'SERVER TÀI XỈU SUNWIN',
+    message: 'Server đang hoạt động bình thường',
     endpoints: {
       api: `/api/sunwin?key=${API_KEY}`,
-      websocket: `/api/sunwin/taixiu/ws?key=${API_KEY}`,
-      history: `/api/history-json?key=${API_KEY}`
+      websocket: `/api/taixiu/ws?key=${API_KEY}`,
+      history: `/api/history?key=${API_KEY}`
     },
     timestamp: new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }),
-    uptime: process.uptime().toFixed(2) + 's'
+    uptime: process.uptime().toFixed(2) + ' giây'
   };
 });
 
 // API lấy kết quả hiện tại
-fastify.get('/api/sunwin', async (request, reply) => {
+app.get('/api/sunwin', async (request, reply) => {
   if (request.query.key !== API_KEY) {
-    return reply.code(403).send({ error: 'Invalid API key' });
+    return reply.code(403).send({ error: 'Sai key truy cập' });
   }
 
-  const row = await new Promise(resolve => {
+  const result = await new Promise(resolve => {
     db.get("SELECT * FROM sessions ORDER BY sid DESC LIMIT 1", (err, row) => {
-      resolve(row);
+      if (err) {
+        console.error('Lỗi truy vấn DB:', err);
+        resolve(null);
+      } else {
+        resolve(row);
+      }
     });
   });
 
-  if (!row) {
-    return reply.code(404).send({ error: 'No data available' });
+  if (!result) {
+    return reply.code(404).send({ error: 'Chưa có dữ liệu' });
   }
 
   return {
-    phien_truoc: row.sid - 1,
-    ket_qua: row.result,
-    Dice: [row.d1, row.d2, row.d3],
-    phien_hien_tai: row.sid,
-    ngay: new Date(row.timestamp).toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" }),
+    phien_truoc: result.sid - 1,
+    ket_qua: result.result,
+    Dice: [result.d1, result.d2, result.d3],
+    phien_hien_tai: result.sid,
+    ngay: new Date(result.timestamp).toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" }),
     Id: "@duonggg1410"
   };
 });
 
 // WebSocket endpoint cho client
-fastify.get('/api/sunwin/taixiu/ws', { websocket: true }, (connection, req) => {
-  if (req.query.key !== API_KEY) {
+app.get('/api/taixiu/ws', { websocket: true }, (connection, request) => {
+  if (request.query.key !== API_KEY) {
     connection.socket.close();
     return;
   }
 
   connectedClients.add(connection.socket);
-  console.log(`👋 Client connected (${connectedClients.size} total)`);
+  console.log(`👤 Client kết nối (Tổng: ${connectedClients.size})`);
 
-  // Gửi ngay phiên hiện tại khi kết nối
+  // Gửi ngay kết quả gần nhất khi client kết nối
   db.get("SELECT * FROM sessions ORDER BY sid DESC LIMIT 1", (err, row) => {
     if (row) {
       connection.socket.send(JSON.stringify({
@@ -192,27 +193,36 @@ fastify.get('/api/sunwin/taixiu/ws', { websocket: true }, (connection, req) => {
 
   connection.socket.on('close', () => {
     connectedClients.delete(connection.socket);
-    console.log(`👋 Client disconnected (${connectedClients.size} remaining)`);
+    console.log(`👤 Client ngắt kết nối (Còn lại: ${connectedClients.size})`);
   });
 });
 
 // Khởi động server
-fastify.listen({ port: PORT, host: '0.0.0.0' }, (err) => {
+app.listen({ port: PORT, host: '0.0.0.0' }, (err) => {
   if (err) {
-    console.error('❌ Lỗi khởi động server:', err);
+    console.error('❌ Không thể khởi động server:', err);
     process.exit(1);
   }
-  console.log(`🚀 Server đang chạy tại http://localhost:${PORT}`);
-  connectSunwinWS(); // Bắt đầu kết nối WebSocket
+  console.log(`🚀 Server đang chạy tại: http://localhost:${PORT}`);
+  connectToSunwin(); // Bắt đầu kết nối tới Sunwin
 });
 
 // Xử lý tắt server
 process.on('SIGINT', () => {
-  console.log('🛑 Đang tắt server...');
-  if (ws) ws.close();
-  if (reconnectTimer) clearTimeout(reconnectTimer);
+  console.log('🛑 Đang dừng server...');
+  
+  if (sunwinConnection) sunwinConnection.close();
+  
+  connectedClients.forEach(client => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.close();
+    }
+  });
+  
   db.close();
-  fastify.close(() => {
+  
+  app.close(() => {
+    console.log('✅ Server đã dừng');
     process.exit(0);
   });
 });
