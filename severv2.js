@@ -95,11 +95,6 @@ const logicPerformanceFilePath = path.resolve(__dirname, 'logic_performance.json
 
 
 // Đã điều chỉnh các ngưỡng để linh hoạt hơn
-const HIGH_CONFIDENCE_THRESHOLD = 0.75; // Ngưỡng du_doan rất tự tin (slightly increased)
-const MODERATE_CONFIDENCE_THRESHOLD = 0.60; // Ngưỡng du_doan trung bình (slightly increased)
-
-
-  logicPerformance[logicName].correct = logicPerformance[logicName].correct * dynamicDecayFactor;
   logicPerformance[logicName].total = logicPerformance[logicName].total * dynamicDecayFactor;
 
   logicPerformance[logicName].total++;
@@ -1510,13 +1505,6 @@ fastify.get("/api/history-json", async (request, reply) => {
 });
 
 // Function to initialize logicPerformance from cauapisun_log.jsonl on startup
-async function initializeLogicPerformanceFromLog() {
-    console.log("Initializing logic performance from historical cau log data...");
-    const cauLogData = await readCauLog();
-    if (cauLogData.length === 0) {
-        console.log("No historical cau log data found for initialization.");
-        return;
-    }
 
     // Create a temporary "history" array from the cauLogData to simulate past sessions
     // This is a simplified reconstruction for the purpose of initializing logicPerformance
@@ -1578,25 +1566,10 @@ const start = async () => {
   }
 };
 start();
-function logic25(history) {
-  const last5 = history.slice(-5);
-  let count = 1;
-  for (let i = last5.length - 1; i > 0; i--) {
-    if (last5[i] === last5[i - 1]) count++;
-    else break;
-  }
   if (count >= 3) return last5[last5.length - 1];
   return null;
 }
 
-function logic26(history) {
-  const last5 = history.slice(-5);
-  const taiCount = last5.filter(r => r === 'T').length;
-  const xiuCount = last5.filter(r => r === 'X').length;
-  if (taiCount >= 7) return 'X'; 
-  if (xiuCount >= 7) return 'T'; 
-  return null;
-}
 
 // WebSocket endpoint for clients to receive predictions
 fastify.get("/ws/sunwin", { websocket: true }, (connection, req) => {
