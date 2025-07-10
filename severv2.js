@@ -61,15 +61,41 @@ app.get('/api/history-json', async (request, reply) => {
 
 // Endpoint trả phiên hiện tại + cầu
 app.get('/api/game', async (request, reply) => {
-  db.all(`SELECT result FROM sessions ORDER BY sid DESC LIMIT 10`, (err, rows) => {
-    const cau = (!err && rows) ? rows.reverse().map(r => r.result) : [];
-    const cau_chu = cau.map(r => r === "Tài" ? "t" : "x").join("");
+  try {
+    db.all(`SELECT result FROM sessions ORDER BY sid DESC LIMIT 10`, (err, rows) => {
+      const cau = (!err && rows) ? rows.reverse().map(r => r.result) : [];
+      const cau_chu = cau.map(r => r === "Tài" ? "t" : "x").join("");
 
-    if (!latestSession) {
-      db.get(
-        "SELECT sid, d1, d2, d3, total, result, timestamp FROM sessions ORDER BY sid DESC LIMIT 1",
-        (err, row) => {
-          if (err || !row) return reply.send({ message: "Chưa có dữ liệu phiên nào" });
+      const sendData = (row) => {
+        if (!row) return reply.send({ message: "Chưa có dữ liệu phiên nào" });
+        reply.send({
+          phien: row.sid,
+          ket_qua: row.result,
+          xuc_xac: [row.d1, row.d2, row.d3],
+          tong: row.total,
+          thoi_gian: new Date(row.timestamp).toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" }),
+          id: "@duonggg1410",
+          cau: cau,
+          cau_chu: cau_chu
+        });
+      };
+
+      if (latestSession) {
+        sendData(latestSession);
+      } else {
+        db.get(
+          "SELECT sid, d1, d2, d3, total, result, timestamp FROM sessions ORDER BY sid DESC LIMIT 1",
+          (err, row) => {
+            if (err) return reply.send({ error: "Lỗi truy vấn DB" });
+            sendData(row);
+          }
+        );
+      }
+    });
+  } catch (e) {
+    reply.send({ error: "Lỗi hệ thống", chi_tiet: e.message });
+  }
+});
           reply.send({
             phien: row.sid,
             ket_qua: row.result,
