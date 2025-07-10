@@ -46,6 +46,7 @@ app.get('/api/history-json', async (request, reply) => {
     if (err) {
       reply.code(500).send({ error: "Lỗi truy vấn DB" });
     } else {
+      reply.header("Content-Type", "application/json; charset=utf-8");
       reply.send(rows.map(row => ({
         phien: row.sid,
         ket_qua: row.result,
@@ -61,7 +62,21 @@ app.get('/api/history-json', async (request, reply) => {
 // Endpoint trả phiên hiện tại
 app.get('/api/game', async (request, reply) => {
   if (!latestSession) {
-    return reply.send({ message: "Chưa có dữ liệu phiên nào" });
+    db.get(
+      "SELECT sid, d1, d2, d3, total, result, timestamp FROM sessions ORDER BY sid DESC LIMIT 1",
+      (err, row) => {
+        if (err || !row) return reply.send({ message: "Chưa có dữ liệu phiên nào" });
+        reply.send({
+          phien: row.sid,
+          ket_qua: row.result,
+          xuc_xac: [row.d1, row.d2, row.d3],
+          tong: row.total,
+          thoi_gian: new Date(row.timestamp).toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" }),
+          id: "@duonggg1410"
+        });
+      }
+    );
+    return;
   }
   const row = latestSession;
   reply.send({
