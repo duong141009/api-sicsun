@@ -59,48 +59,43 @@ app.get('/api/history-json', async (request, reply) => {
   });
 });
 
-// Endpoint trả phiên hiện tại
+// Endpoint trả phiên hiện tại + cầu
 app.get('/api/game', async (request, reply) => {
   db.all(`SELECT result FROM sessions ORDER BY sid DESC LIMIT 10`, (err, rows) => {
     const cau = (!err && rows) ? rows.reverse().map(r => r.result) : [];
     const cau_chu = cau.map(r => r === "Tài" ? "t" : "x").join("");
-  if (!latestSession) {
-    db.get(
-      "SELECT sid, d1, d2, d3, total, result, timestamp FROM sessions ORDER BY sid DESC LIMIT 1",
-      (err, row) => {
-        if (err || !row) return reply.send({ message: "Chưa có dữ liệu phiên nào" });
-        reply.send({
-    phien: row.sid,
-          ket_qua: row.result,
-          xuc_xac: [row.d1, row.d2, row.d3],
-          tong: row.total,
-          thoi_gian: new Date(row.timestamp).toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" }),
-          id: "@duonggg1410"
-        });
-      }
-    );
-    return;
-  }
-  const row = latestSession;
-  reply.send({
-    phien: row.sid,
-    ket_qua: row.result,
-    xuc_xac: [row.d1, row.d2, row.d3],
-    tong: row.total,
-    thoi_gian: new Date(row.timestamp).toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" }),
-    id: "@duonggg1410",
-    cau: cau,
-    cau_chu: cau_chu,
-    cau: cau
-  });
-});
 
-// Endpoint mẫu cầu 10 phiên gần nhất
-app.get('/api/cau', async (request, reply) => {
-  db.all(`SELECT result FROM sessions ORDER BY sid DESC LIMIT 10`, (err, rows) => {
-    if (err || !rows) return reply.send({ error: "Không lấy được dữ liệu mẫu cầu" });
-    const cau = rows.reverse().map(r => r.result); // đảo lại theo thứ tự tăng dần
-    reply.send({ mau_cau: cau });
+    if (!latestSession) {
+      db.get(
+        "SELECT sid, d1, d2, d3, total, result, timestamp FROM sessions ORDER BY sid DESC LIMIT 1",
+        (err, row) => {
+          if (err || !row) return reply.send({ message: "Chưa có dữ liệu phiên nào" });
+          reply.send({
+            phien: row.sid,
+            ket_qua: row.result,
+            xuc_xac: [row.d1, row.d2, row.d3],
+            tong: row.total,
+            thoi_gian: new Date(row.timestamp).toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" }),
+            id: "@duonggg1410",
+            cau: cau,
+            cau_chu: cau_chu
+          });
+        }
+      );
+      return;
+    }
+
+    const row = latestSession;
+    reply.send({
+      phien: row.sid,
+      ket_qua: row.result,
+      xuc_xac: [row.d1, row.d2, row.d3],
+      tong: row.total,
+      thoi_gian: new Date(row.timestamp).toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" }),
+      id: "@duonggg1410",
+      cau: cau,
+      cau_chu: cau_chu
+    });
   });
 });
 
@@ -109,6 +104,7 @@ app.get("/", async (request, reply) => {
   reply.send({ status: "✅ Sunwin server đang chạy ngon lành!" });
 });
 
+// WebSocket
 function sendCmd1005() {
   if (ws && ws.readyState === WebSocket.OPEN) {
     const payload = [6, "MiniGame", "taixiuPlugin", { cmd: 1005 }];
@@ -121,7 +117,6 @@ function connectWebSocket() {
 
   ws.on("open", () => {
     console.log("Đã kết nối WebSocket đến Sunwin");
-
     const authPayload = [
       1,
       "MiniGame",
@@ -132,7 +127,6 @@ function connectWebSocket() {
         signature: "4247BBEA81ADD441E782834AAD73A36B10549697FDC2605F7D378425D66D1DD1B9B301B60FEEB490C4B172114400864B7CF2E86D9DDC1E99299A510DEB73A51653E3E5B92B1D8535613EDE3925D5509273D9239BA384EC914D491E974EAA7D643895EE14A9F4708B38D55461AB9B31AB0FFCD53858D69EB1C368F07DEA315BCA"
       }
     ];
-
     ws.send(JSON.stringify(authPayload));
     clearInterval(intervalCmd);
     intervalCmd = setInterval(sendCmd1005, 2000);
@@ -143,12 +137,10 @@ function connectWebSocket() {
       const json = JSON.parse(data);
       if (Array.isArray(json) && json[1]?.htr) {
         const incomingResults = json[1].htr.sort((a, b) => a.sid - b.sid);
-
         for (const item of incomingResults) {
           const total = item.d1 + item.d2 + item.d3;
           const result = (total >= 3 && total <= 10) ? "Xỉu" : "Tài";
           const timestamp = Date.now();
-
           latestSession = {
             sid: item.sid,
             d1: item.d1,
@@ -158,7 +150,6 @@ function connectWebSocket() {
             result,
             timestamp
           };
-
           db.get("SELECT sid FROM sessions WHERE sid = ?", [item.sid], (err, row) => {
             if (!row) {
               db.run(
