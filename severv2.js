@@ -68,7 +68,39 @@ app.get('/api/game', async (request, reply) => {
 
       const sendData = (row) => {
         if (!row) {
-          reply.send({ message: "Chưa có dữ liệu phiên nào" });
+          return reply.send({ message: "Chưa có dữ liệu phiên nào" });
+        }
+
+        reply.send({
+          phien: row.sid,
+          ket_qua: row.result,
+          xuc_xac: [row.d1, row.d2, row.d3],
+          tong: row.total,
+          thoi_gian: new Date(row.timestamp).toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" }),
+          id: "@duonggg1410",
+          cau: cau,
+          cau_chu: cau_chu
+        });
+      };
+
+      if (latestSession) {
+        sendData(latestSession);
+      } else {
+        db.get(
+          "SELECT sid, d1, d2, d3, total, result, timestamp FROM sessions ORDER BY sid DESC LIMIT 1",
+          (err, row) => {
+            if (err) {
+              return reply.send({ error: "Lỗi truy vấn DB" });
+            }
+            sendData(row);
+          }
+        );
+      }
+    });
+  } catch (e) {
+    reply.send({ error: "Lỗi hệ thống", chi_tiet: e.message });
+  }
+});
         } else {
           reply.send({
             phien: row.sid,
