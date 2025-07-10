@@ -9,10 +9,11 @@ const API_KEY = "DUONGGG";
 const dbPath = path.resolve(__dirname, 'sun.sql');
 let ws = null;
 let intervalCmd = null;
+let latestSession = null;
 
 // Middleware API key
 app.addHook("onRequest", async (request, reply) => {
-  if (request.url.startsWith("/api/history-json")) {
+  if (request.url.startsWith("/api")) {
     const urlKey = request.query.key;
     if (!urlKey || urlKey !== API_KEY) {
       return reply.code(403).send({ error: "Key sai mẹ rồi, liên hệ tele: @duonggg1410" });
@@ -39,7 +40,7 @@ const db = new sqlite3.Database(dbPath, (err) => {
   }
 });
 
-// API trả dữ liệu
+// Endpoint trả lịch sử
 app.get('/api/history-json', async (request, reply) => {
   db.all(`SELECT sid, d1, d2, d3, total, result, timestamp FROM sessions ORDER BY sid DESC LIMIT 50`, (err, rows) => {
     if (err) {
@@ -57,7 +58,27 @@ app.get('/api/history-json', async (request, reply) => {
   });
 });
 
-// Gửi lệnh lấy dữ liệu Sunwin
+// Endpoint trả phiên hiện tại
+app.get('/api/game', async (request, reply) => {
+  if (!latestSession) {
+    return reply.send({ message: "Chưa có dữ liệu phiên nào" });
+  }
+  const row = latestSession;
+  reply.send({
+    phien: row.sid,
+    ket_qua: row.result,
+    xuc_xac: [row.d1, row.d2, row.d3],
+    tong: row.total,
+    thoi_gian: new Date(row.timestamp).toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" }),
+    id: "@duonggg1410"
+  });
+});
+
+// Route mặc định
+app.get("/", async (request, reply) => {
+  reply.send({ status: "✅ Sunwin server đang chạy ngon lành!" });
+});
+
 function sendCmd1005() {
   if (ws && ws.readyState === WebSocket.OPEN) {
     const payload = [6, "MiniGame", "taixiuPlugin", { cmd: 1005 }];
@@ -65,7 +86,6 @@ function sendCmd1005() {
   }
 }
 
-// Kết nối tới Sunwin WebSocket
 function connectWebSocket() {
   ws = new WebSocket("wss://websocket.azhkthg1.net/websocket?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJhbW91bnQiOjB9.p56b5g73I9wyoVu4db679bOvVeFJWVjGDg_ulBXyav8");
 
@@ -99,6 +119,16 @@ function connectWebSocket() {
           const total = item.d1 + item.d2 + item.d3;
           const result = (total >= 3 && total <= 10) ? "Xỉu" : "Tài";
           const timestamp = Date.now();
+
+          latestSession = {
+            sid: item.sid,
+            d1: item.d1,
+            d2: item.d2,
+            d3: item.d3,
+            total,
+            result,
+            timestamp
+          };
 
           db.get("SELECT sid FROM sessions WHERE sid = ?", [item.sid], (err, row) => {
             if (!row) {
