@@ -61,13 +61,16 @@ app.get('/api/history-json', async (request, reply) => {
 
 // Endpoint trả phiên hiện tại
 app.get('/api/game', async (request, reply) => {
+  db.all(`SELECT result FROM sessions ORDER BY sid DESC LIMIT 10`, (err, rows) => {
+    const cau = (!err && rows) ? rows.reverse().map(r => r.result) : [];
+    const cau_chu = cau.map(r => r === "Tài" ? "t" : "x").join("");
   if (!latestSession) {
     db.get(
       "SELECT sid, d1, d2, d3, total, result, timestamp FROM sessions ORDER BY sid DESC LIMIT 1",
       (err, row) => {
         if (err || !row) return reply.send({ message: "Chưa có dữ liệu phiên nào" });
         reply.send({
-          phien: row.sid,
+    phien: row.sid,
           ket_qua: row.result,
           xuc_xac: [row.d1, row.d2, row.d3],
           tong: row.total,
@@ -85,7 +88,19 @@ app.get('/api/game', async (request, reply) => {
     xuc_xac: [row.d1, row.d2, row.d3],
     tong: row.total,
     thoi_gian: new Date(row.timestamp).toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" }),
-    id: "@duonggg1410"
+    id: "@duonggg1410",
+    cau: cau,
+    cau_chu: cau_chu,
+    cau: cau
+  });
+});
+
+// Endpoint mẫu cầu 10 phiên gần nhất
+app.get('/api/cau', async (request, reply) => {
+  db.all(`SELECT result FROM sessions ORDER BY sid DESC LIMIT 10`, (err, rows) => {
+    if (err || !rows) return reply.send({ error: "Không lấy được dữ liệu mẫu cầu" });
+    const cau = rows.reverse().map(r => r.result); // đảo lại theo thứ tự tăng dần
+    reply.send({ mau_cau: cau });
   });
 });
 
@@ -130,7 +145,6 @@ function connectWebSocket() {
         const incomingResults = json[1].htr.sort((a, b) => a.sid - b.sid);
 
         for (const item of incomingResults) {
-          if ([item.d1, item.d2, item.d3].some(v => v < 1 || v > 6)) continue;
           const total = item.d1 + item.d2 + item.d3;
           const result = (total >= 3 && total <= 10) ? "Xỉu" : "Tài";
           const timestamp = Date.now();
@@ -153,6 +167,11 @@ function connectWebSocket() {
                 (err) => {
                   if (!err) console.log(`Đã lưu phiên ${item.sid}`);
                 }
+              );
+            } else {
+              db.run(
+                `UPDATE sessions SET d1 = ?, d2 = ?, d3 = ?, total = ?, result = ?, timestamp = ? WHERE sid = ?`,
+                [item.d1, item.d2, item.d3, total, result, timestamp, item.sid]
               );
             }
           });
