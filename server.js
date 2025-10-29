@@ -4,12 +4,13 @@ const fs = require('fs');
 const path = require('path');
 
 const app = express();
-app.use(express.json()); // để đọc JSON body
+app.use(express.json());
 const PORT = 3000;
 
 const API_URL = 'https://api.wsktnus8.net/v2/history/getLastResult?gameId=ktrng_3979&size=100&tableId=39791215743193&curPage=1';
 const UPDATE_INTERVAL = 5000;
 const HISTORY_FILE = path.join(__dirname, 'prediction_history.json');
+const CSV_FILE = path.join(__dirname, 'history_data.csv');
 
 let historyData = [];
 let lastPrediction = {
@@ -47,12 +48,34 @@ function appendPredictionHistory(record) {
     savePredictionHistory(all);
 }
 
+// --- Lưu lịch sử ra file CSV ---
+function saveHistoryToCSV(history) {
+    if (!Array.isArray(history) || history.length === 0) return;
+
+    const header = 'Phien,Xuc_xac_1,Xuc_xac_2,Xuc_xac_3,Tong,Ket_qua\n';
+    const rows = history.slice(0, 100).map(item => {
+        const a = item.facesList?.[0] || 0;
+        const b = item.facesList?.[1] || 0;
+        const c = item.facesList?.[2] || 0;
+        const sum = item.score || 0;
+        const result = getResultType(item);
+        return `${item.gameNum},${a},${b},${c},${sum},${result}`;
+    }).join('\n');
+
+    try {
+        fs.writeFileSync(CSV_FILE, header + rows, 'utf8');
+    } catch (e) {
+        console.error('Lỗi lưu CSV:', e.message);
+    }
+}
+
 // --- Hàm cập nhật dữ liệu API ---
 async function updateHistory() {
     try {
-        const res = await axios.get(API_URL);
+        const res = await axios.get(API_URL, { timeout: 5000 });
         if (res?.data?.data?.resultList) {
             historyData = res.data.data.resultList;
+            saveHistoryToCSV(historyData);
         }
     } catch (e) {
         console.error('Lỗi cập nhật:', e.message);
@@ -82,7 +105,7 @@ function predictMain(history) {
     return avg >= 10.5 ? "Tài" : "Xỉu";
 }
 
-// --- Tính tần suất từng tổng trong lịch sử ---
+// --- Tính tần suất từng tổng ---
 function calcSumFrequency(history, prediction, top = 3) {
     const range = prediction === "Tài" ? [11,12,13,14,15,16,17] : [4,5,6,7,8,9,10];
     const freq = {};
@@ -95,18 +118,15 @@ function calcSumFrequency(history, prediction, top = 3) {
     const sorted = Object.entries(freq)
         .sort((a,b) => b[1] - a[1])
         .map(e => parseInt(e[0]));
-    // bổ sung nếu thiếu
     for (const val of range) {
         if (!sorted.includes(val)) sorted.push(val);
     }
     return sorted.slice(0, top);
 }
 
-// --- Tính xác suất dự đoán đúng từng tổng ---
+// --- Tính xác suất đúng từng tổng ---
 function calcPredictionAccuracy(predHistory) {
-    // predHistory = [ {phien, du_doan, doan_vi: [x,y,z], ket_qua_thuc: "Tài" hoặc "Xỉu"} ]
-    // Tính số lần dự đoán trùng kết quả thực / tổng lần dự đoán theo từng tổng vị
-    const stats = {}; // { tổng: {correct: , total: } }
+    const stats = {};
     predHistory.forEach(rec => {
         if (!rec.doan_vi || !rec.ket_qua_thuc) return;
         rec.doan_vi.forEach(sum => {
@@ -115,19 +135,17 @@ function calcPredictionAccuracy(predHistory) {
             if (rec.du_doan === rec.ket_qua_thuc) stats[sum].correct++;
         });
     });
-    // Tính tỉ lệ
     const accuracy = {};
     Object.entries(stats).forEach(([sum, obj]) => {
         accuracy[sum] = obj.total > 0 ? (obj.correct / obj.total) : 0;
     });
-    return accuracy; // { "11": 0.7, "12":0.5 ... }
+    return accuracy;
 }
 
-// --- Dự đoán top sums có xác suất cao nhất ---
+// --- Dự đoán top tổng ---
 function predictTopSumsWithAccuracy(prediction, history, predHistory, top=3) {
     const sumsFreq = calcSumFrequency(history, prediction, 10);
     const accuracy = calcPredictionAccuracy(predHistory);
-    // Sắp xếp sums theo xác suất đúng giảm dần, nếu bằng thì theo tần suất
     const sumsSorted = sumsFreq.sort((a,b) => {
         const accA = accuracy[a] || 0;
         const accB = accuracy[b] || 0;
@@ -137,47 +155,34 @@ function predictTopSumsWithAccuracy(prediction, history, predHistory, top=3) {
     return sumsSorted.slice(0, top);
 }
 
-// --- Đoạn lưu lại dự đoán, gọi mỗi khi có kết quả thực tế ---
-
+// --- Ghi nhận kết quả thực tế ---
 app.post('/report-result', (req, res) => {
-    // Dữ liệu gửi lên: { phien, ket_qua_thuc: "Tài"|"Xỉu" }
     const { phien, ket_qua_thuc } = req.body;
     if (!phien || !ket_qua_thuc) {
         return res.status(400).json({error: "Thiếu phien hoặc ket_qua_thuc"});
     }
 
     const predHist = loadPredictionHistory();
-    const lastPred = predHist.find(p => p.phien === phien);
-    if (!lastPred) return res.status(404).json({error: "Không tìm thấy dự đoán phiên này"});
+    const idx = predHist.findIndex(p => p.phien === phien);
+    if (idx === -1) return res.status(404).json({error: "Không tìm thấy dự đoán phiên này"});
 
-    // Cập nhật kết quả thực tế
-    lastPred.ket_qua_thuc = ket_qua_thuc;
-
-    // Lưu lại
+    predHist[idx].ket_qua_thuc = ket_qua_thuc;
     savePredictionHistory(predHist);
     res.json({success: true});
 });
 
-// --- Endpoint chính ---
+// --- Endpoint dự đoán chính ---
 app.get('/predict', async (req, res) => {
     await updateHistory();
     const latest = historyData[0] || {};
     const currentPhien = latest.gameNum;
-
-    // Tải lịch sử dự đoán
     const predHist = loadPredictionHistory();
 
     if (currentPhien !== lastPrediction.phien) {
         const du_doan = predictMain(historyData);
         const doan_vi = predictTopSumsWithAccuracy(du_doan, historyData, predHist, 3);
+        lastPrediction = { phien: currentPhien, du_doan, doan_vi };
 
-        lastPrediction = {
-            phien: currentPhien,
-            du_doan,
-            doan_vi
-        };
-
-        // Lưu dự đoán mới (chưa có kết quả thực tế)
         appendPredictionHistory({
             phien: currentPhien,
             du_doan,
@@ -198,6 +203,27 @@ app.get('/predict', async (req, res) => {
         Pattern: generatePattern(historyData),
         Du_doan: lastPrediction.du_doan,
         doan_vi: lastPrediction.doan_vi
+    });
+});
+
+// --- Endpoint xem lịch sử ---
+app.get('/history', async (req, res) => {
+    await updateHistory();
+
+    const data = historyData.slice(0, 100).map(item => ({
+        Phien: item.gameNum,
+        Xuc_xac_1: item.facesList?.[0] || 0,
+        Xuc_xac_2: item.facesList?.[1] || 0,
+        Xuc_xac_3: item.facesList?.[2] || 0,
+        Tong: item.score || 0,
+        Ket_qua: getResultType(item)
+    }));
+
+    res.json({
+        Id: "binhtool90",
+        Tong_phien: data.length,
+        Pattern: generatePattern(historyData),
+        Lich_su: data
     });
 });
 
