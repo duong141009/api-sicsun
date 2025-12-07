@@ -220,7 +220,7 @@ app.get('/history', async (req, res) => {
     }));
 
     res.json({
-        Id: "binhtool90",
+        Id: "Dwong1410",
         Tong_phien: data.length,
         Pattern: generatePattern(historyData),
         Lich_su: data
