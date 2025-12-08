@@ -7,8 +7,8 @@ const app = express();
 app.use(express.json());
 const PORT = 3000;
 
-const API_URL = 'https://api.wsktnus8.net/v2/history/getLastResult?gameId=ktrng_3979&size=100&tableId=39791215743193&curPage=1';
-const UPDATE_INTERVAL = 5000;
+const API_URL = 'https://api.wsktnus8.net/v2/history/getLastResult?gameId=ktrng_3979&size=200&tableId=39791215743193&curPage=1';
+const UPDATE_INTERVAL = 15000;
 const HISTORY_FILE = path.join(__dirname, 'prediction_history.json');
 const CSV_FILE = path.join(__dirname, 'history_data.csv');
 
